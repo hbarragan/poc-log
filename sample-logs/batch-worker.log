@@ -1,0 +1,7 @@
+2026-06-16 08:00:02 INFO job=sync-orders started batch=ADA-20260616-01
+2026-06-16 08:00:05 INFO job=sync-orders imported=18 skipped=0
+2026-06-16 08:00:11 WARN job=stock-reconcile material=MAT-008 difference=2 action=review
+2026-06-16 08:00:15 ERROR job=label-export batch=ADA-20260616-01 failed reason=printer queue unavailable
+2026-06-16 08:00:18 INFO job=sync-orders finished duration=16s
+2026-06-16 08:00:22 DEBUG job=cleanup tempFiles=12 deleted=12
+2026-06-16 08:00:30 FATAL job=audit-forwarder connection lost target=audit-bus

@@ -1,0 +1,24 @@
+{
+  "name": "poc-log",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "bin": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "prebuild": "if not exist dist mkdir dist",
+    "build": "npx --yes pkg . --targets node18-win-x64 --output dist/poc-log.exe",
+    "build:exe": "npm run build",
+    "build:excel": "npm run build",
+    "build:service": "node build-service.js",
+    "build:installer": "npm run build:service"
+  },
+  "pkg": {
+    "assets": [
+      "index.html",
+      "styles.css",
+      "script.js",
+      "assets/**/*"
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "pkg": {
+    "assets": [
+      "dist/service-payload/**/*"
+    ]
+  }
+}

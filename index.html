@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Adasoft Log Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar" aria-label="Menu principal">
+        <div class="brand">
+          <img src="./assets/adasoft-menu-logo.png" alt="Adasoft" />
+        </div>
+
+        <nav class="product-nav" aria-label="Secciones">
+          <button class="nav-item active" type="button" data-section="dashboard">Dashboard</button>
+          <button class="nav-item" type="button" data-section="admin">Administracion</button>
+          <button class="nav-item" type="button" data-section="api">API</button>
+          <button class="nav-item" type="button" data-section="mcp">MCP</button>
+        </nav>
+
+        <div class="top-actions">
+          <button id="saveViewButton" class="contact-action" type="button" disabled>Guardar vista</button>
+        </div>
+      </header>
+
+      <section class="event-strip" aria-label="Contexto">
+        <strong>Observabilidad local</strong>
+        <span>Logs por identificador</span>
+        <span>Vistas persistentes</span>
+      </section>
+
+      <section class="workspace" id="dashboardSection">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h1>Cruza logs de disco en una pantalla operativa.</h1>
+            <p class="hero-copy">Selecciona fuentes, filtra errores, busca globalmente y guarda la composicion por URL.</p>
+          </div>
+          <div class="hero-actions">
+            <label class="select-field" for="viewSelect">
+              <span>Vista</span>
+              <select id="viewSelect"></select>
+            </label>
+            <button id="reloadButton" class="primary-action" type="button">Refrescar</button>
+          </div>
+        </header>
+
+        <section class="service-dock" aria-label="Herramientas de busqueda">
+          <div class="search-group">
+            <label class="input-field" for="globalSearch">
+              <span>Busqueda global</span>
+              <input id="globalSearch" type="search" placeholder="Texto, excepcion, lote, request id..." />
+            </label>
+            <label class="select-field" for="tailSelect">
+              <span>Lineas</span>
+              <select id="tailSelect">
+                <option value="200">200</option>
+                <option value="500" selected>500</option>
+                <option value="1000">1000</option>
+                <option value="2500">2500</option>
+              </select>
+            </label>
+            <label class="select-field" for="refreshSelect">
+              <span>Auto</span>
+              <select id="refreshSelect">
+                <option value="0">Off</option>
+                <option value="3">3s</option>
+                <option value="5" selected>5s</option>
+                <option value="10">10s</option>
+                <option value="30">30s</option>
+              </select>
+            </label>
+          </div>
+
+          <div>
+            <p class="dock-label">Filtros rapidos</p>
+            <div class="dock-options">
+              <button class="side-option active" type="button" data-level="all">Todos</button>
+              <button class="side-option" type="button" data-level="error">Solo errores</button>
+              <button class="side-option" type="button" data-level="warn">Warnings</button>
+              <button class="side-option" type="button" data-level="debug">Debug</button>
+              <button id="compactButton" class="side-option" type="button">Compacto +</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="status-strip" aria-label="Estado">
+          <article class="metric">
+            <span>Fuentes</span>
+            <strong id="sourcesMetric">0</strong>
+          </article>
+          <article class="metric">
+            <span>Lineas visibles</span>
+            <strong id="linesMetric">0</strong>
+          </article>
+          <article class="metric">
+            <span>Errores</span>
+            <strong id="errorsMetric">0</strong>
+          </article>
+          <article class="metric">
+            <span>Ultimo refresco</span>
+            <strong id="refreshMetric">-</strong>
+          </article>
+        </section>
+
+        <section class="source-picker" aria-label="Fuentes disponibles">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Fuentes</p>
+              <h2>Logs montados por id</h2>
+            </div>
+            <div class="source-actions">
+              <button id="selectAllSourcesButton" class="side-option" type="button">Seleccionar todos</button>
+              <span class="pill">Paths ocultos en la URL</span>
+            </div>
+          </div>
+          <div id="sourceList" class="source-list"></div>
+        </section>
+
+        <section id="logGrid" class="log-grid" aria-label="Paneles de logs"></section>
+      </section>
+
+      <section class="workspace" id="adminSection" hidden>
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Administracion</p>
+            <h1>Alta de logs por path fisico del servidor.</h1>
+            <p class="hero-copy">Cada path queda guardado con un identificador. Las vistas usan ids, no rutas completas.</p>
+          </div>
+        </header>
+
+        <section class="admin-grid">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Nuevo log</p>
+                <h2 id="sourceFormTitle">Registrar fuente</h2>
+              </div>
+              <span class="pill">Disco local</span>
+            </div>
+            <form id="sourceForm" class="admin-form">
+              <label class="input-field" for="sourceName">
+                <span>Nombre</span>
+                <input id="sourceName" name="name" type="text" placeholder="api-gateway-prod" required />
+              </label>
+              <label class="input-field" for="sourceId">
+                <span>Id opcional</span>
+                <input id="sourceId" name="id" type="text" placeholder="api-gateway" />
+              </label>
+              <label class="input-field wide" for="sourcePath">
+                <span>Path fisico (fichero o carpeta)</span>
+                <input id="sourcePath" name="path" type="text" placeholder="C:\logs\app.log o C:\logs\app" required />
+              </label>
+              <label class="input-field" for="sourceColor">
+                <span>Color</span>
+                <input id="sourceColor" name="color" type="color" value="#2354d5" />
+              </label>
+              <button class="primary-action" type="submit">Guardar fuente</button>
+              <button id="cancelSourceEdit" class="side-option" type="button" hidden>Cancelar edicion</button>
+            </form>
+            <p id="adminMessage" class="form-message" role="status"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Observabilidad</p>
+                <h2>Salida hacia Loki</h2>
+              </div>
+              <span class="pill">Runtime</span>
+            </div>
+            <form id="settingsForm" class="admin-form">
+              <label class="select-field wide" for="lokiEnabledSelect">
+                <span>Enviar logs a Loki</span>
+                <select id="lokiEnabledSelect" name="lokiEnabled">
+                  <option value="true">Si</option>
+                  <option value="false">No</option>
+                </select>
+              </label>
+              <button class="primary-action" type="submit">Guardar ajuste</button>
+            </form>
+            <p id="settingsMessage" class="form-message" role="status"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Inventario</p>
+                <h2>Paths disponibles</h2>
+              </div>
+              <div class="admin-actions">
+                <button id="exportSourcesButton" class="side-option" type="button">Exportar JSON</button>
+                <label class="side-option import-action" for="importSourcesInput">Importar JSON</label>
+                <input id="importSourcesInput" type="file" accept="application/json,.json" hidden />
+                <span class="pill" id="adminCount">0 logs</span>
+              </div>
+            </div>
+            <div id="adminSourceList" class="admin-source-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="workspace" id="apiSection" hidden>
+        <header class="hero">
+          <div>
+            <p class="eyebrow">REST API</p>
+            <h1>API para consultar logs desde IA o herramientas externas.</h1>
+            <p class="hero-copy">Endpoints JSON locales para fuentes, busquedas, estadisticas y fichero efectivo.</p>
+          </div>
+          <div class="hero-actions">
+            <a class="primary-action doc-link" href="/api/ai/openapi.json" target="_blank" rel="noopener noreferrer">OpenAPI JSON</a>
+          </div>
+        </header>
+
+        <section class="doc-grid">
+          <article class="doc-card">
+            <span class="method get">GET</span>
+            <h2>/api/ai/sources</h2>
+            <p>Lista fuentes configuradas, path, estado y fichero resuelto.</p>
+            <pre><code>curl http://127.0.0.1:2500/api/ai/sources</code></pre>
+          </article>
+          <article class="doc-card">
+            <span class="method post">POST</span>
+            <h2>/api/ai/search</h2>
+            <p>Busca texto y niveles en una o varias fuentes.</p>
+            <pre><code>{
+  "sourceIds": ["symcont-pharmasuite-api"],
+  "query": "exception",
+  "levels": ["error", "fatal"],
+  "tail": 500
+}</code></pre>
+          </article>
+          <article class="doc-card">
+            <span class="method post">POST</span>
+            <h2>/api/ai/stats</h2>
+            <p>Cuenta lineas por nivel para dashboards o agentes.</p>
+            <pre><code>{
+  "sourceIds": ["symcont-pharmasuite-api"]
+}</code></pre>
+          </article>
+          <article class="doc-card">
+            <span class="method get">GET</span>
+            <h2>/api/ai/source/{id}/latest</h2>
+            <p>Devuelve el fichero que se esta leyendo. Si el path es carpeta, devuelve el ultimo modificado.</p>
+            <pre><code>curl http://127.0.0.1:2500/api/ai/source/symcont-pharmasuite-api/latest</code></pre>
+          </article>
+        </section>
+      </section>
+
+      <section class="workspace" id="mcpSection" hidden>
+        <header class="hero">
+          <div>
+            <p class="eyebrow">MCP</p>
+            <h1>Servidor MCP local para agentes compatibles con Anthropic MCP.</h1>
+            <p class="hero-copy">Endpoint HTTP JSON-RPC en /mcp. Expone herramientas para listar, buscar y contar logs.</p>
+          </div>
+        </header>
+
+        <section class="doc-grid">
+          <article class="doc-card wide-doc">
+            <span class="method post">POST</span>
+            <h2>Endpoint MCP</h2>
+            <p>URL local:</p>
+            <pre><code>http://127.0.0.1:2500/mcp</code></pre>
+            <p>URL desde otra maquina de la red:</p>
+            <pre><code>http://192.168.5.19:2500/mcp</code></pre>
+            <p>Configuracion MCP HTTP:</p>
+            <pre><code>{
+  "mcpServers": {
+    "logs_pharmasuite_adasoft": {
+      "url": "http://192.168.5.19:2500/mcp"
+    }
+  }
+}</code></pre>
+            <p>Si tu cliente solo soporta stdio, usa puente:</p>
+            <pre><code>{
+  "mcpServers": {
+    "logs_pharmasuite_adasoft": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://192.168.5.19:2500/mcp"]
+    }
+  }
+}</code></pre>
+            <p>Inicializacion JSON-RPC:</p>
+            <pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "capabilities": {},
+    "clientInfo": { "name": "local-ai", "version": "1.0.0" }
+  }
+}</code></pre>
+          </article>
+          <article class="doc-card">
+            <h2>list_log_sources</h2>
+            <p>Lista fuentes y estado.</p>
+            <pre><code>{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "list_log_sources",
+    "arguments": {}
+  }
+}</code></pre>
+          </article>
+          <article class="doc-card">
+            <h2>query_logs</h2>
+            <p>Busca texto y niveles.</p>
+            <pre><code>{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "query": "timeout",
+      "levels": ["error"],
+      "tail": 200
+    }
+  }
+}</code></pre>
+          </article>
+          <article class="doc-card">
+            <h2>get_log_stats</h2>
+            <p>Cuenta niveles por fuente.</p>
+            <pre><code>{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "get_log_stats",
+    "arguments": {}
+  }
+}</code></pre>
+          </article>
+          <article class="doc-card">
+            <h2>get_latest_log_file</h2>
+            <p>Resuelve el fichero real de una fuente.</p>
+            <pre><code>{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "get_latest_log_file",
+    "arguments": {
+      "sourceId": "symcont-pharmasuite-api"
+    }
+  }
+}</code></pre>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="saveViewDialog" class="modal">
+      <form method="dialog" class="modal-body" id="viewForm">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Vista</p>
+            <h2>Guardar composicion</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Cerrar" type="submit">x</button>
+        </div>
+        <label class="input-field" for="viewName">
+          <span>Nombre</span>
+          <input id="viewName" type="text" placeholder="Produccion turno noche" required />
+        </label>
+        <label class="input-field" for="viewId">
+          <span>Id opcional</span>
+          <input id="viewId" type="text" placeholder="prod-noche" />
+        </label>
+        <div class="modal-actions">
+          <button class="side-option" value="cancel" type="submit">Cancelar</button>
+          <button id="confirmSaveView" class="primary-action" value="default" type="button">Guardar</button>
+        </div>
+        <p id="viewMessage" class="form-message" role="status"></p>
+      </form>
+    </dialog>
+
+    <dialog id="detailDialog" class="detail-modal">
+      <section class="detail-shell" aria-label="Detalle de log">
+        <header class="detail-header">
+          <div>
+            <p class="eyebrow">Detalle log</p>
+            <h2 id="detailTitle">Log</h2>
+            <p id="detailSubtitle"></p>
+          </div>
+          <button id="closeDetailButton" class="icon-button" type="button" aria-label="Cerrar">x</button>
+        </header>
+
+        <section class="detail-toolbar" aria-label="Herramientas de log">
+          <label class="input-field" for="detailSearch">
+            <span>Buscar en este log</span>
+            <input id="detailSearch" type="search" placeholder="Texto, error, request id..." />
+          </label>
+          <label class="select-field" for="detailLevel">
+            <span>Nivel</span>
+            <select id="detailLevel">
+              <option value="all">Todos</option>
+              <option value="error">Error/Fatal</option>
+              <option value="warn">Warnings</option>
+              <option value="info">Info</option>
+              <option value="debug">Debug</option>
+            </select>
+          </label>
+          <label class="select-field" for="detailTail">
+            <span>Lineas</span>
+            <select id="detailTail">
+              <option value="1000">1000</option>
+              <option value="2500">2500</option>
+              <option value="5000">5000</option>
+              <option value="10000" selected>10000</option>
+            </select>
+          </label>
+          <div class="detail-actions">
+            <button id="detailPrevMatch" class="side-option" type="button">Anterior</button>
+            <button id="detailNextMatch" class="side-option" type="button">Siguiente</button>
+            <button id="detailReload" class="primary-action" type="button">Recargar</button>
+          </div>
+        </section>
+
+        <section class="detail-metrics" aria-label="Metricas detalle">
+          <span id="detailVisibleCount">0 lineas</span>
+          <span id="detailMatchCount">0 coincidencias</span>
+          <span id="detailErrorCount">0 errores</span>
+          <span id="detailWarnCount">0 warnings</span>
+        </section>
+
+        <div id="detailLogLines" class="detail-log-lines"></div>
+      </section>
+    </dialog>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

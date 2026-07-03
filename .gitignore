@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+.npm-cache/
+
+# Build / ejecutables generados (pkg)
+dist/
+
+# Datos y estado en tiempo de ejecución
+data/
+*.log
+!sample-logs/*.log
+
+# Binarios de herramientas
+tools/nssm.exe
+
+# Claude Code (configuración local)
+.claude/settings.local.json
+
+# Sistema operativo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+
+# Entorno
+.env
+.env.local

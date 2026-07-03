@@ -1,0 +1,115 @@
+{
+  "uid": "adasoft-logger-todos-los-logs",
+  "title": "Adasoft Logger - Todos los logs",
+  "tags": ["adasoft", "logs", "loki", "global"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "source",
+        "label": "Fuentes",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "adasoft-loki" },
+        "definition": "label_values({job=\"adasoft-logger-api\"}, source_id)",
+        "query": { "query": "label_values({job=\"adasoft-logger-api\"}, source_id)", "refId": "LokiVariableQueryEditor-VariableQuery" },
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": ["$__all"] }
+      },
+      {
+        "name": "level",
+        "label": "Nivel",
+        "type": "custom",
+        "query": "fatal,error,warn,info,debug",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": ["$__all"] }
+      },
+      {
+        "name": "search",
+        "label": "Buscar texto",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Todos los logs",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Vista global de todas las fuentes configuradas.** Filtra por fuente, nivel o texto. Cada linea conserva `source_id`, `source_name`, `level` y `host`."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Fuentes con actividad",
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 3 },
+      "datasource": { "type": "loki", "uid": "adasoft-loki" },
+      "targets": [
+        { "refId": "A", "expr": "count(sum by (source_id) (count_over_time({job=\"adasoft-logger-api\", source_id=~\"${source:regex}\"}[$__range])))" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Lineas encontradas",
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 3 },
+      "datasource": { "type": "loki", "uid": "adasoft-loki" },
+      "targets": [
+        { "refId": "A", "expr": "sum(count_over_time({job=\"adasoft-logger-api\", source_id=~\"${source:regex}\", level=~\"${level:regex}\"} |= \"$search\" [$__range]))" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Errores y fatales",
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 3 },
+      "datasource": { "type": "loki", "uid": "adasoft-loki" },
+      "targets": [
+        { "refId": "A", "expr": "sum(count_over_time({job=\"adasoft-logger-api\", source_id=~\"${source:regex}\", level=~\"error|fatal\"} |= \"$search\" [$__range]))" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Volumen por fuente",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "adasoft-loki" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (source_id) (count_over_time({job=\"adasoft-logger-api\", source_id=~\"${source:regex}\", level=~\"${level:regex}\"} |= \"$search\" [$__interval]))", "legendFormat": "{{source_id}}" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 12, "showPoints": "auto" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "Todas las lineas",
+      "description": "Vista cronologica cruzada. Abre una linea para inspeccionar labels y contexto.",
+      "gridPos": { "h": 23, "w": 24, "x": 0, "y": 17 },
+      "datasource": { "type": "loki", "uid": "adasoft-loki" },
+      "targets": [
+        { "refId": "A", "expr": "{job=\"adasoft-logger-api\", source_id=~\"${source:regex}\", level=~\"${level:regex}\"} |= \"$search\"" }
+      ],
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "showCommonLabels": false, "showLabels": true, "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    }
+  ]
+}

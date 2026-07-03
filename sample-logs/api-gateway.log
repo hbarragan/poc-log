@@ -1,0 +1,8 @@
+2026-06-16 08:00:01 INFO requestId=REQ-1001 endpoint=/orders status=200 duration=83ms
+2026-06-16 08:00:04 INFO requestId=REQ-1002 endpoint=/materials status=200 duration=49ms
+2026-06-16 08:00:09 WARN requestId=REQ-1003 endpoint=/batches retry=1 reason=slow upstream
+2026-06-16 08:00:12 ERROR requestId=REQ-1004 endpoint=/orders failed to call MES adapter timeout=30000ms
+2026-06-16 08:00:14 INFO requestId=REQ-1005 endpoint=/orders status=200 duration=91ms
+2026-06-16 08:00:19 DEBUG requestId=REQ-1006 auth cache hit user=operator01
+2026-06-16 08:00:23 ERROR requestId=REQ-1007 endpoint=/labels exception=TemplateNotFound template=primary-label
+2026-06-16 08:00:29 INFO requestId=REQ-1008 endpoint=/health status=200 duration=5ms
