@@ -238,6 +238,16 @@ select {
   border-radius: 8px;
 }
 
+.date-filter {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(210px, 0.45fr) minmax(210px, 0.45fr);
+  gap: 14px;
+  align-items: end;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .search-group {
   display: grid;
   grid-template-columns: minmax(300px, 1fr) 110px 110px;
@@ -937,6 +947,7 @@ select {
 
   .status-strip,
   .search-group,
+  .date-filter,
   .admin-form {
     grid-template-columns: 1fr;
   }

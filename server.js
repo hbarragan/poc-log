@@ -411,6 +411,9 @@ function normalizeView(input, existingViews, previousView) {
       compact: Boolean(input.filters?.compact),
       tail: Number(input.filters?.tail || 500),
       refreshSeconds: Number(input.filters?.refreshSeconds || 5),
+      dateFrom: input.filters?.dateFrom ? String(input.filters.dateFrom) : null,
+      dateTo: input.filters?.dateTo ? String(input.filters.dateTo) : null,
+      timePreset: ["5m", "15m", "30m", "1h"].includes(input.filters?.timePreset) ? input.filters.timePreset : "",
     },
     layout: String(input.layout || "grid"),
     createdAt: previousView?.createdAt || now,
@@ -426,12 +429,54 @@ function detectLevel(line) {
   return "info";
 }
 
+function parseLogTimestamp(line, fallbackDate) {
+  const text = String(line || "");
+  const isoMatch = text.match(/^\s*(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,9}))?(?:\s*(Z|[+-]\d{2}:?\d{2}))?/i);
+  const localMatch = text.match(/^\s*(\d{2})[\/-](\d{2})[\/-](\d{4})[T\s](\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,9}))?/);
+  const timeMatch = text.match(/^\s*(\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,9}))?/);
+  let date;
+  let raw;
+  let inferredDate = false;
+
+  if (isoMatch) {
+    raw = isoMatch[0].trim();
+    const fraction = String(isoMatch[7] || "").padEnd(3, "0").slice(0, 3);
+    const zone = isoMatch[8];
+    if (zone) {
+      const normalizedZone = zone === "Z" ? "Z" : `${zone.slice(0, 3)}:${zone.slice(-2)}`;
+      date = new Date(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T${isoMatch[4]}:${isoMatch[5]}:${isoMatch[6]}.${fraction}${normalizedZone}`);
+    } else {
+      date = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), Number(isoMatch[4]), Number(isoMatch[5]), Number(isoMatch[6]), Number(fraction));
+    }
+  } else if (localMatch) {
+    raw = localMatch[0].trim();
+    const fraction = String(localMatch[7] || "").padEnd(3, "0").slice(0, 3);
+    date = new Date(Number(localMatch[3]), Number(localMatch[2]) - 1, Number(localMatch[1]), Number(localMatch[4]), Number(localMatch[5]), Number(localMatch[6]), Number(fraction));
+  } else if (timeMatch && fallbackDate) {
+    raw = timeMatch[0].trim();
+    const base = new Date(fallbackDate);
+    const fraction = String(timeMatch[4] || "").padEnd(3, "0").slice(0, 3);
+    date = new Date(base.getFullYear(), base.getMonth(), base.getDate(), Number(timeMatch[1]), Number(timeMatch[2]), Number(timeMatch[3]), Number(fraction));
+    inferredDate = true;
+  }
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return { timestamp: null, timestampRaw: null, timestampInferred: false };
+  }
+
+  return {
+    timestamp: date.toISOString(),
+    timestampRaw: raw,
+    timestampInferred: inferredDate,
+  };
+}
+
 function simplifyLine(line) {
-  return line
-    .replace(/^\s*\d{4}-\d{2}-\d{2}[t\s]\d{2}:\d{2}:\d{2}[^\s]*/i, "")
+  const simplified = line
     .replace(/^\s*\[[^\]]+\]\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
+  return simplified.length > 180 ? `${simplified.slice(0, 179)}…` : simplified;
 }
 
 function readLastBytes(filePath) {
@@ -472,15 +517,26 @@ function querySource(source, options) {
   const query = String(options.query || "").toLowerCase();
   const selectedLevels = new Set(Array.isArray(options.levels) ? options.levels : []);
   const tail = Math.min(Math.max(Number(options.tail || 500), 1), maxTailLines);
+  const dateFrom = options.dateFrom ? Date.parse(options.dateFrom) : null;
+  const dateTo = options.dateTo ? Date.parse(options.dateTo) : null;
 
+  let previousTimestamp = null;
   const allLines = raw.text
     .split(/\r?\n/)
     .filter(Boolean)
     .map((message, index) => {
       const level = detectLevel(message);
+      const parsedTimestamp = parseLogTimestamp(message, raw.modifiedAt);
+      if (parsedTimestamp.timestamp) {
+        previousTimestamp = parsedTimestamp.timestamp;
+      } else if (previousTimestamp) {
+        parsedTimestamp.timestamp = previousTimestamp;
+        parsedTimestamp.timestampInferred = true;
+      }
       return {
         index,
         level,
+        ...parsedTimestamp,
         message,
         summary: simplifyLine(message) || message.slice(0, 180),
       };
@@ -489,6 +545,9 @@ function querySource(source, options) {
   const filtered = allLines.filter((line) => {
     if (selectedLevels.size && !selectedLevels.has(line.level)) return false;
     if (query && !line.message.toLowerCase().includes(query)) return false;
+    const lineTime = line.timestamp ? Date.parse(line.timestamp) : null;
+    if (Number.isFinite(dateFrom) && (!Number.isFinite(lineTime) || lineTime < dateFrom)) return false;
+    if (Number.isFinite(dateTo) && (!Number.isFinite(lineTime) || lineTime > dateTo)) return false;
     return true;
   });
 
@@ -742,6 +801,10 @@ async function syncObservability() {
       for (const line of delta.lines) {
         if (lokiEnabled) {
           const level = detectLevel(line);
+          const parsedTimestamp = parseLogTimestamp(line, delta.status.modifiedAt);
+          const lokiTimestamp = parsedTimestamp.timestamp
+            ? (BigInt(new Date(parsedTimestamp.timestamp).getTime()) * 1000000n + BigInt(lineOffset)).toString()
+            : nowNanoseconds(lineOffset);
           appendLokiLine(streams, {
             job: "adasoft-logger-api",
             service_name: source.name,
@@ -749,7 +812,7 @@ async function syncObservability() {
             source_id: source.id,
             source_name: source.name,
             level,
-          }, nowNanoseconds(lineOffset), line);
+          }, lokiTimestamp, line);
           summary.linesPublished += 1;
           publishedLines += 1;
         }
@@ -847,6 +910,8 @@ function buildOpenApiDocument() {
                     query: { type: "string" },
                     levels: { type: "array", items: { type: "string", enum: ["fatal", "error", "warn", "info", "debug"] } },
                     tail: { type: "number" },
+                    dateFrom: { type: "string", format: "date-time" },
+                    dateTo: { type: "string", format: "date-time" },
                   },
                 },
               },
@@ -893,6 +958,8 @@ async function handleAiApi(request, response, url, store) {
       query: body.query || "",
       levels: Array.isArray(body.levels) ? body.levels : [],
       tail: body.tail || 500,
+      dateFrom: body.dateFrom,
+      dateTo: body.dateTo,
     });
     sendJson(response, 200, { results, generatedAt: new Date().toISOString() });
     return true;
@@ -942,6 +1009,8 @@ function mcpToolDefinitions() {
           query: { type: "string", description: "Texto a buscar. Opcional." },
           levels: { type: "array", items: { type: "string", enum: ["fatal", "error", "warn", "info", "debug"] } },
           tail: { type: "number", description: "Lineas maximas por fuente." },
+          dateFrom: { type: "string", description: "Fecha inicial inclusiva en formato ISO 8601." },
+          dateTo: { type: "string", description: "Fecha final inclusiva en formato ISO 8601." },
         },
       },
     },
@@ -1004,6 +1073,8 @@ function callMcpTool(store, name, args = {}) {
         query: args.query || "",
         levels: Array.isArray(args.levels) ? args.levels : [],
         tail: args.tail || 500,
+        dateFrom: args.dateFrom,
+        dateTo: args.dateTo,
       }),
       generatedAt: new Date().toISOString(),
     });

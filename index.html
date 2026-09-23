@@ -84,6 +84,27 @@
               <button id="compactButton" class="side-option" type="button">Compacto +</button>
             </div>
           </div>
+
+          <div class="date-filter">
+            <div>
+              <p class="dock-label">Periodo</p>
+              <div class="dock-options">
+                <button class="side-option" type="button" data-time-preset="5m">Últimos 5 m</button>
+                <button class="side-option" type="button" data-time-preset="15m">15 m</button>
+                <button class="side-option" type="button" data-time-preset="30m">30 m</button>
+                <button class="side-option" type="button" data-time-preset="1h">1 h</button>
+                <button id="clearDateFilter" class="side-option" type="button">Sin límite</button>
+              </div>
+            </div>
+            <label class="input-field" for="dateFrom">
+              <span>Desde</span>
+              <input id="dateFrom" type="datetime-local" step="1" />
+            </label>
+            <label class="input-field" for="dateTo">
+              <span>Hasta</span>
+              <input id="dateTo" type="datetime-local" step="1" />
+            </label>
+          </div>
         </section>
 
         <section class="status-strip" aria-label="Estado">

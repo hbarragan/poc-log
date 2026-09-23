@@ -7,6 +7,7 @@ const state = {
   selectedSourceIds: new Set(),
   activeLevel: "all",
   compact: false,
+  timePreset: "",
   refreshTimer: null,
   currentViewId: "",
   editingSourceId: "",
@@ -39,6 +40,10 @@ const elements = {
   refreshSelect: document.querySelector("#refreshSelect"),
   reloadButton: document.querySelector("#reloadButton"),
   compactButton: document.querySelector("#compactButton"),
+  dateFrom: document.querySelector("#dateFrom"),
+  dateTo: document.querySelector("#dateTo"),
+  clearDateFilter: document.querySelector("#clearDateFilter"),
+  timePresetButtons: document.querySelectorAll("[data-time-preset]"),
   levelButtons: document.querySelectorAll("[data-level]"),
   sourcesMetric: document.querySelector("#sourcesMetric"),
   linesMetric: document.querySelector("#linesMetric"),
@@ -134,13 +139,47 @@ function getSelectedLevels() {
 }
 
 function getCurrentFilters() {
+  syncPresetDates();
   return {
     query: elements.globalSearch.value.trim(),
     levels: getSelectedLevels(),
     compact: state.compact,
     tail: Number(elements.tailSelect.value),
     refreshSeconds: Number(elements.refreshSelect.value),
+    dateFrom: localInputToIso(elements.dateFrom.value),
+    dateTo: localInputToIso(elements.dateTo.value),
+    timePreset: state.timePreset,
   };
+}
+
+function dateToLocalInput(date) {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 19);
+}
+
+function localInputToIso(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function presetMilliseconds(preset) {
+  return { "5m": 5 * 60000, "15m": 15 * 60000, "30m": 30 * 60000, "1h": 60 * 60000 }[preset] || 0;
+}
+
+function syncPresetDates() {
+  const duration = presetMilliseconds(state.timePreset);
+  if (!duration) return;
+  const now = new Date();
+  elements.dateFrom.value = dateToLocalInput(new Date(now.getTime() - duration));
+  elements.dateTo.value = dateToLocalInput(now);
+}
+
+function updateTimeFilterButtons() {
+  elements.timePresetButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.timePreset === state.timePreset);
+  });
+  elements.clearDateFilter.classList.toggle("active", !state.timePreset && !elements.dateFrom.value && !elements.dateTo.value);
 }
 
 function updateSaveButton() {
@@ -170,10 +209,17 @@ function formatBytes(bytes) {
 
 function formatTime(value) {
   if (!value) return "-";
-  return new Date(value).toLocaleTimeString("es-ES", {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("es-ES", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    fractionalSecondDigits: 3,
+    hour12: false,
   });
 }
 
@@ -374,14 +420,18 @@ function renderLogPanel(result) {
     result.lines.forEach((line) => {
       const row = createElement("div", `log-line ${line.level}`);
       const level = createElement("span", "level", line.level);
-      const message = createElement("span", "message", state.compact ? line.summary : line.message);
-      const expand = createElement("button", "expand-line", "+");
+      let expanded = !state.compact;
+      const message = createElement("span", "message", expanded ? line.message : line.summary);
+      const expand = createElement("button", "expand-line", expanded ? "−" : "+");
       expand.type = "button";
-      expand.title = "Expandir linea";
+      expand.title = expanded ? "Contraer línea" : "Expandir línea";
+      expand.setAttribute("aria-expanded", String(expanded));
       expand.addEventListener("click", () => {
-        const expanded = expand.textContent === "-";
-        expand.textContent = expanded ? "+" : "-";
-        message.textContent = expanded ? line.summary : line.message;
+        expanded = !expanded;
+        expand.textContent = expanded ? "−" : "+";
+        expand.title = expanded ? "Contraer línea" : "Expandir línea";
+        expand.setAttribute("aria-expanded", String(expanded));
+        message.textContent = expanded ? line.message : line.summary;
       });
 
       row.append(level, message, expand);
@@ -400,6 +450,7 @@ async function loadDetailSource() {
   elements.detailLogLines.replaceChildren(createElement("p", "detail-empty", "Cargando log..."));
 
   try {
+    const currentFilters = getCurrentFilters();
     const payload = await api("/api/logs/query", {
       method: "POST",
       body: JSON.stringify({
@@ -408,6 +459,8 @@ async function loadDetailSource() {
         query: "",
         compact: false,
         tail: Number(elements.detailTail.value),
+        dateFrom: currentFilters.dateFrom,
+        dateTo: currentFilters.dateTo,
       }),
     });
 
@@ -634,11 +687,16 @@ function applyView(view) {
   elements.globalSearch.value = view.filters?.query || "";
   elements.tailSelect.value = String(view.filters?.tail || 500);
   elements.refreshSelect.value = String(view.filters?.refreshSeconds ?? 5);
+  state.timePreset = view.filters?.timePreset || "";
+  elements.dateFrom.value = state.timePreset ? "" : (view.filters?.dateFrom ? dateToLocalInput(new Date(view.filters.dateFrom)) : "");
+  elements.dateTo.value = state.timePreset ? "" : (view.filters?.dateTo ? dateToLocalInput(new Date(view.filters.dateTo)) : "");
+  syncPresetDates();
   state.compact = Boolean(view.filters?.compact);
   state.activeLevel = view.filters?.levels?.[0] || "all";
 
   elements.viewSelect.value = view.id;
   updateFilterButtons();
+  updateTimeFilterButtons();
   updateSaveButton();
   renderSources();
   scheduleRefresh();
@@ -793,6 +851,31 @@ function bindEvents() {
     refreshLogs();
   });
 
+  elements.timePresetButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.timePreset = button.dataset.timePreset;
+      syncPresetDates();
+      updateTimeFilterButtons();
+      refreshLogs();
+    });
+  });
+
+  [elements.dateFrom, elements.dateTo].forEach((input) => {
+    input.addEventListener("change", () => {
+      state.timePreset = "";
+      updateTimeFilterButtons();
+      refreshLogs();
+    });
+  });
+
+  elements.clearDateFilter.addEventListener("click", () => {
+    state.timePreset = "";
+    elements.dateFrom.value = "";
+    elements.dateTo.value = "";
+    updateTimeFilterButtons();
+    refreshLogs();
+  });
+
   elements.saveViewButton.addEventListener("click", () => {
     if (!state.selectedSourceIds.size) return;
     elements.viewName.value = state.currentViewId
@@ -839,6 +922,7 @@ function bindEvents() {
 async function init() {
   bindEvents();
   updateFilterButtons();
+  updateTimeFilterButtons();
   await loadData();
 
   const searchParams = new URLSearchParams(window.location.search);

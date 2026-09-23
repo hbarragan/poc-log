@@ -13,6 +13,8 @@ const payloadNssm = path.join(payloadDir, "tools", "nssm.exe");
 const tempNssm = path.join(os.tmpdir(), "poc-log-nssm.exe");
 const observabilityStateFile = "observability-state.json";
 const tempObservabilityState = path.join(os.tmpdir(), `poc-log-${observabilityStateFile}`);
+const storeFile = "store.json";
+const tempStore = path.join(os.tmpdir(), `poc-log-${storeFile}`);
 
 function log(message) {
   console.log(`[poc-log-service] ${message}`);
@@ -159,6 +161,26 @@ function restoreObservabilityState(hasBackup) {
   fs.rmSync(tempObservabilityState, { force: true });
 }
 
+function backupLogConfiguration() {
+  const sourcePath = path.join(installDir, "data", storeFile);
+  fs.rmSync(tempStore, { force: true });
+
+  if (!fs.existsSync(sourcePath)) return false;
+
+  fs.copyFileSync(sourcePath, tempStore);
+  log("Preservando configuracion de logs, vistas y ajustes");
+  return true;
+}
+
+function restoreLogConfiguration(hasBackup) {
+  if (!hasBackup || !fs.existsSync(tempStore)) return;
+
+  const targetPath = path.join(installDir, "data", storeFile);
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.copyFileSync(tempStore, targetPath);
+  fs.rmSync(tempStore, { force: true });
+}
+
 function removeServiceIfExists(nssmPath, targetServiceName = serviceName) {
   if (!serviceExists(targetServiceName)) return;
 
@@ -228,11 +250,13 @@ function main() {
   }
 
   removeServiceIfExists(tempNssm);
+  const hasLogConfiguration = backupLogConfiguration();
   const hasObservabilityState = backupObservabilityState();
   removeInstallDirectory();
 
   log(`Actualizando ficheros en ${installDir}`);
   copyDirectory(payloadDir, installDir);
+  restoreLogConfiguration(hasLogConfiguration);
   restoreObservabilityState(hasObservabilityState);
 
   installService(path.join(installDir, "tools", "nssm.exe"));
